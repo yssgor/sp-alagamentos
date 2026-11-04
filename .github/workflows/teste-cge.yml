@@ -1,0 +1,46 @@
+# Teste manual: o CGE responde aos servidores do GitHub?
+# Rodar em Actions → "teste-cge" → Run workflow.
+# Os HTMLs baixados ficam disponíveis como artefato (exemplos reais para o parser).
+name: teste-cge
+
+on:
+  workflow_dispatch:
+    inputs:
+      datas:
+        description: "Datas a coletar (AAAA-MM-DD, hoje ou ontem), separadas por espaço"
+        default: "2020-02-10 2026-11-01 hoje"
+
+jobs:
+  coletar:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: collector
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+      - name: Coletar
+        env:
+          DATAS: ${{ inputs.datas }}
+        run: |
+          for d in $DATAS; do
+            go run ./cmd/coletor dia -data "$d" -raiz ../data/raw
+            sleep 5
+          done
+      - name: Resumo
+        run: |
+          echo "## Resultado" >> "$GITHUB_STEP_SUMMARY"
+          echo "| arquivo | bytes | pontos (div.ponto-de-alagamento) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          find ../data/raw -name '*.html.gz' | sort | while read f; do
+            bytes=$(zcat "$f" | wc -c)
+            pontos=$(zcat "$f" | grep -o 'ponto-de-alagamento' | wc -l)
+            echo "| ${f#../data/raw/} | $bytes | $pontos |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          test -n "$(find ../data/raw -name '*.html.gz')" || { echo "Nenhum HTML baixado: o CGE pode estar bloqueando o GitHub" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snapshots-cge
+          path: data/raw/

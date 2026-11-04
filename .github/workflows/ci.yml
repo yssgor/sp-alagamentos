@@ -1,0 +1,22 @@
+name: ci
+
+on:
+  push:
+    paths: ["collector/**", ".github/workflows/ci.yml"]
+  pull_request:
+    paths: ["collector/**"]
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: collector
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+      - run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - run: go vet ./...
+      - run: go test ./...

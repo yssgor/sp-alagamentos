@@ -1,0 +1,21 @@
+# dados brutos ficam fora do git
+data/raw/
+
+# Go
+collector/bin/
+*.exe
+*.test
+*.out
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.ruff_cache/
+
+# ambiente
+.env
+.DS_Store
+Thumbs.db
+desktop.ini
