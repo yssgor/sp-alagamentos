@@ -2,6 +2,8 @@
 //
 //	coletor dia [-data AAAA-MM-DD|hoje|ontem]   # padrão: ontem (horário de SP)
 //	coletor backfill -de AAAA-MM-DD -ate AAAA-MM-DD [-intervalo 5s]
+//
+// Sai com código 1 se alguma coleta falhar, para o GitHub Actions avisar.
 package main
 
 import (
@@ -51,7 +53,9 @@ func cmdDia(args []string) {
 	raiz := fs.String("raiz", "../data/raw", "pasta dos snapshots brutos")
 	fs.Parse(args)
 
-	coletar(context.Background(), cge.NovoCliente(), armazem.Bruto{Raiz: *raiz}, parseData(*data))
+	if err := coletar(context.Background(), cge.NovoCliente(), armazem.Bruto{Raiz: *raiz}, parseData(*data)); err != nil {
+		os.Exit(1)
+	}
 }
 
 func cmdBackfill(args []string) {
@@ -66,28 +70,37 @@ func cmdBackfill(args []string) {
 	}
 
 	cli, store := cge.NovoCliente(), armazem.Bruto{Raiz: *raiz}
+	total, falhas := 0, 0
 	for d := parseData(*de); !d.After(parseData(*ate)); d = d.AddDate(0, 0, 1) {
-		coletar(context.Background(), cli, store, d)
+		total++
+		if err := coletar(context.Background(), cli, store, d); err != nil {
+			falhas++
+		}
 		time.Sleep(*intervalo)
+	}
+	log.Printf("backfill: %d dias, %d falhas", total, falhas)
+	if falhas > 0 {
+		os.Exit(1)
 	}
 }
 
-func coletar(ctx context.Context, cli *cge.Cliente, store armazem.Bruto, dia time.Time) {
+func coletar(ctx context.Context, cli *cge.Cliente, store armazem.Bruto, dia time.Time) error {
 	html, err := cli.BaixarDia(ctx, dia)
 	if err != nil {
 		log.Printf("%s: erro: %v", dia.Format("2006-01-02"), err)
-		return
+		return err
 	}
 	caminho, gravou, err := store.Salvar(dia, time.Now(), html)
 	if err != nil {
 		log.Printf("%s: erro ao salvar: %v", dia.Format("2006-01-02"), err)
-		return
+		return err
 	}
 	status := "sem mudança"
 	if gravou {
 		status = "salvo"
 	}
 	log.Printf("%s: %d bytes, %s (%s)", dia.Format("2006-01-02"), len(html), status, caminho)
+	return nil
 }
 
 func parseData(s string) time.Time {
