@@ -17,10 +17,11 @@ jobs:
       run:
         working-directory: collector
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: collector/go.mod
+          cache: false  # sem dependências externas (não há go.sum)
       - name: Coletar
         env:
           DATAS: ${{ inputs.datas }}
@@ -40,7 +41,7 @@ jobs:
             echo "| ${f#../data/raw/} | $bytes | $pontos |" >> "$GITHUB_STEP_SUMMARY"
           done
           test -n "$(find ../data/raw -name '*.html.gz')" || { echo "Nenhum HTML baixado: o CGE pode estar bloqueando o GitHub" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: snapshots-cge
           path: data/raw/

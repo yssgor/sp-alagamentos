@@ -64,9 +64,9 @@ Seletores HTML usados por um scraper anterior (a confirmar com snapshot atual):
 ## Pendências
 
 - [ ] Salvar snapshots HTML reais em `collector/testdata/` (dia com muitos pontos, dia vazio, dia com ponto ativo) — o proxy desta sessão bloqueou o acesso direto; baixar pelo navegador ou pelo coletor.
-- [ ] Medir o tamanho real de cada página (estimativa abaixo usa 40–150 KB).
+- [x] Medir o tamanho real: 12 KB (dia vazio), 90 KB (10/02/2020, 129 pontos).
 - [ ] Confirmar a data mais antiga com dados.
-- [ ] Testar se o site responde a IPs de fora do Brasil (runners do GitHub Actions).
+- [x] O site responde aos runners do GitHub Actions (teste de 04/11/2026). A contagem de `div.ponto-de-alagamento` bateu com os 129 pontos de 10/02/2020, então esse seletor continua válido.
 
 ## Referências
 

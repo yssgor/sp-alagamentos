@@ -1,7 +1,7 @@
 # Infraestrutura — quanto dado é?
 
 Estimativa de 03/11/2026, com base na investigação do CGE (`docs/fontes/cge.md`).
-Números a confirmar quando o primeiro snapshot real for medido.
+Tamanho das páginas medido em 04/11/2026 pelo workflow `teste-cge`: **12 KB** num dia sem alagamento e **90 KB** num dia com 129 pontos (10/02/2020).
 
 ## Resumo
 
@@ -12,8 +12,8 @@ Números a confirmar quando o primeiro snapshot real for medido.
 | Item | Conta | Ordem de grandeza |
 |---|---|---|
 | Dias de histórico (2005 → hoje) | ~22 anos × 365 | ~8.000 páginas |
-| HTML por página | 40–150 KB (a medir) | — |
-| Backfill bruto | 8.000 × ~80 KB | ~650 MB sem compressão, **~60–100 MB em gzip** |
+| HTML por página | 12 KB (dia vazio) a ~90 KB (dia com 100+ pontos) | — |
+| Backfill bruto | ~7.200 dias vazios × 12 KB + ~800 dias com alagamento × ~40 KB | ~120 MB sem compressão, **~20–30 MB em gzip** |
 | Tempo de backfill educado | 8.000 req × 5 s | ~11 h (dividir em várias noites) |
 | Ocorrências normalizadas | ~80 dias com alagamento/ano × ~20 pontos × 22 anos | **~35–50 mil linhas → < 5 MB em Parquet** |
 | Coleta diária | 1 página/dia | ~30 MB/ano bruto, ~3 MB gzip |
@@ -38,4 +38,4 @@ DuckDB processa isso em segundos num notebook.
   - base normalizada e JSON do site: **no próprio repositório** (poucos MB);
   - HTML bruto: **fora do git** — Cloudflare R2 (10 GB grátis) ou assets de release do GitHub; localmente em `data/raw/`.
 
-Risco a testar: o site do CGE pode bloquear IPs de fora do Brasil (os runners do GitHub ficam nos EUA).
+Testado em 04/11/2026: o CGE responde normalmente aos runners do GitHub Actions.
