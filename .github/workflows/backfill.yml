@@ -1,0 +1,74 @@
+# Backfill do histórico do CGE, um ano por vez, do mais recente para o mais antigo.
+# Rodar à mão em Actions → backfill → Run workflow. Cada ano leva ~35 min;
+# 2005–2026 inteiro leva ~13 h. Pode rodar junto com a coleta agendada.
+name: backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      ano_inicio:
+        description: "Primeiro ano"
+        default: "2005"
+      ano_fim:
+        description: "Último ano (o ano atual vai só até ontem)"
+        default: "2026"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backfill
+  cancel-in-progress: false
+
+jobs:
+  anos:
+    runs-on: ubuntu-latest
+    outputs:
+      lista: ${{ steps.lista.outputs.lista }}
+    steps:
+      - id: lista
+        env:
+          INICIO: ${{ inputs.ano_inicio }}
+          FIM: ${{ inputs.ano_fim }}
+        run: |
+          [[ "$INICIO" =~ ^[0-9]{4}$ && "$FIM" =~ ^[0-9]{4}$ ]] || { echo "Anos inválidos"; exit 1; }
+          echo "lista=$(seq "$FIM" -1 "$INICIO" | jq -cs .)" >> "$GITHUB_OUTPUT"
+
+  coletar:
+    needs: anos
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      max-parallel: 1   # um ano por vez, para não sobrecarregar o CGE
+      fail-fast: false  # se um ano falhar, segue para o próximo
+      matrix:
+        ano: ${{ fromJSON(needs.anos.outputs.lista) }}
+    name: ano ${{ matrix.ano }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: collector/go.mod
+          cache: false
+
+      - name: Compilar coletor
+        working-directory: collector
+        run: go build -o "$RUNNER_TEMP/coletor" ./cmd/coletor
+
+      - name: Preparar branch dados
+        run: bash .github/scripts/dados.sh preparar
+
+      - name: Coletar ${{ matrix.ano }}
+        env:
+          ANO: ${{ matrix.ano }}
+        run: |
+          de="$ANO-01-01"
+          ate="$ANO-12-31"
+          ontem=$(TZ=America/Sao_Paulo date -d yesterday +%F)
+          if [[ "$ate" > "$ontem" ]]; then ate="$ontem"; fi
+          "$RUNNER_TEMP/coletor" backfill -de "$de" -ate "$ate" -raiz dados/raw
+
+      - name: Commit na branch dados
+        if: ${{ !cancelled() }}
+        run: bash .github/scripts/dados.sh commit "backfill ${{ matrix.ano }}"

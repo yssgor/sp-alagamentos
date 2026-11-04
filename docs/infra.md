@@ -35,7 +35,7 @@ DuckDB processa isso em segundos num notebook.
 - O backfill é uma tarefa única: roda no seu computador, em algumas noites.
 - VPS só se justifica se quisermos "ao vivo" com horário garantido.
 - Onde guardar:
-  - base normalizada e JSON do site: **no próprio repositório** (poucos MB);
-  - HTML bruto: **fora do git** — Cloudflare R2 (10 GB grátis) ou assets de release do GitHub; localmente em `data/raw/`.
+  - **decidido (04/11/2026):** HTML bruto e JSON do site na branch `dados` do próprio repositório; a `main` fica só com código;
+  - se o volume crescer muito, migrar para Cloudflare R2 (10 GB grátis).
 
 Testado em 04/11/2026: o CGE responde normalmente aos runners do GitHub Actions.
