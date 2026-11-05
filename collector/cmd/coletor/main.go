@@ -2,20 +2,25 @@
 //
 //	coletor dia [-data AAAA-MM-DD|hoje|ontem]   # padrão: ontem (horário de SP)
 //	coletor backfill -de AAAA-MM-DD -ate AAAA-MM-DD [-intervalo 5s]
+//	coletor processar [-raiz ../data/raw] [-saida ../data/processed/ocorrencias.csv]
 //
 // Sai com código 1 se alguma coleta falhar, para o GitHub Actions avisar.
 package main
 
 import (
 	"context"
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/yssgor/sp-alagamentos/collector/internal/armazem"
 	"github.com/yssgor/sp-alagamentos/collector/internal/cge"
+	"github.com/yssgor/sp-alagamentos/collector/internal/parser"
 )
 
 var sp = carregarFuso()
@@ -37,13 +42,15 @@ func main() {
 		cmdDia(os.Args[2:])
 	case "backfill":
 		cmdBackfill(os.Args[2:])
+	case "processar":
+		cmdProcessar(os.Args[2:])
 	default:
 		uso()
 	}
 }
 
 func uso() {
-	fmt.Fprintln(os.Stderr, "uso: coletor dia [-data AAAA-MM-DD|hoje|ontem] | coletor backfill -de AAAA-MM-DD -ate AAAA-MM-DD [-intervalo 5s]")
+	fmt.Fprintln(os.Stderr, "uso: coletor dia [-data AAAA-MM-DD|hoje|ontem] | coletor backfill -de AAAA-MM-DD -ate AAAA-MM-DD [-intervalo 5s] | coletor processar [-raiz DIR] [-saida ARQ.csv]")
 	os.Exit(2)
 }
 
@@ -71,7 +78,7 @@ func cmdBackfill(args []string) {
 
 	cli, store := cge.NovoCliente(), armazem.Bruto{Raiz: *raiz}
 	total, falhas := 0, 0
-	for d := parseData(*de); !d.After(parseData(*ate)); d = d.AddDate(0, 0, 1) {
+	for _, d := range diasEntre(parseData(*de), parseData(*ate)) {
 		total++
 		if err := coletar(context.Background(), cli, store, d); err != nil {
 			falhas++
@@ -79,6 +86,63 @@ func cmdBackfill(args []string) {
 		time.Sleep(*intervalo)
 	}
 	log.Printf("backfill: %d dias, %d falhas", total, falhas)
+	if falhas > 0 {
+		os.Exit(1)
+	}
+}
+
+// cmdProcessar lê o snapshot mais recente de cada dia e grava todas as
+// ocorrências num CSV. Dias com erro de parsing são listados e o comando
+// termina com código 1, mas os demais dias são gravados.
+func cmdProcessar(args []string) {
+	fs := flag.NewFlagSet("processar", flag.ExitOnError)
+	raiz := fs.String("raiz", "../data/raw", "pasta dos snapshots brutos")
+	saida := fs.String("saida", "../data/processed/ocorrencias.csv", "arquivo CSV de saída")
+	fs.Parse(args)
+
+	snaps, err := armazem.Bruto{Raiz: *raiz}.UltimosPorDia(sp)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(*saida), 0o755); err != nil {
+		log.Fatal(err)
+	}
+	f, err := os.Create(*saida)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	w := csv.NewWriter(f)
+	w.Write([]string{"id", "data", "inicio", "fim", "zona", "subprefeitura", "local",
+		"sentido", "referencia", "intransitavel", "ativo"})
+
+	ocorrencias, falhas := 0, 0
+	for _, s := range snaps {
+		html, err := armazem.Ler(s.Caminho)
+		if err == nil {
+			var oc []parser.Ocorrencia
+			oc, err = parser.Parse(s.Dia, html)
+			for _, o := range oc {
+				fim := ""
+				if o.Fim != nil {
+					fim = o.Fim.Format(time.RFC3339)
+				}
+				w.Write([]string{o.ID, o.Data.Format("2006-01-02"), o.Inicio.Format(time.RFC3339), fim,
+					o.Zona, o.Subprefeitura, o.Local, o.Sentido, o.Referencia,
+					strconv.FormatBool(o.Intransitavel), strconv.FormatBool(o.Ativo)})
+			}
+			ocorrencias += len(oc)
+		}
+		if err != nil {
+			falhas++
+			log.Printf("erro: %v (%s)", err, s.Caminho)
+		}
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("processar: %d dias, %d ocorrências, %d dias com erro → %s", len(snaps), ocorrencias, falhas, *saida)
 	if falhas > 0 {
 		os.Exit(1)
 	}
@@ -103,9 +167,13 @@ func coletar(ctx context.Context, cli *cge.Cliente, store armazem.Bruto, dia tim
 	return nil
 }
 
+// parseData devolve a data ao meio-dia de SP. Meio-dia e não meia-noite porque,
+// nos anos com horário de verão (até 2019), a meia-noite do dia em que o relógio
+// adiantava não existia: o Go a empurrava para 01:00 e o laço do backfill
+// pulava o último dia do período.
 func parseData(s string) time.Time {
-	hoje := time.Now().In(sp)
-	hoje = time.Date(hoje.Year(), hoje.Month(), hoje.Day(), 0, 0, 0, 0, sp)
+	agora := time.Now().In(sp)
+	hoje := time.Date(agora.Year(), agora.Month(), agora.Day(), 12, 0, 0, 0, sp)
 	switch s {
 	case "hoje":
 		return hoje
@@ -116,5 +184,14 @@ func parseData(s string) time.Time {
 	if err != nil {
 		log.Fatalf("data inválida %q: %v", s, err)
 	}
-	return d
+	return time.Date(d.Year(), d.Month(), d.Day(), 12, 0, 0, 0, sp)
+}
+
+// diasEntre lista as datas de de até ate, inclusive.
+func diasEntre(de, ate time.Time) []time.Time {
+	var dias []time.Time
+	for d := de; !d.After(ate); d = d.AddDate(0, 0, 1) {
+		dias = append(dias, d)
+	}
+	return dias
 }

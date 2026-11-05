@@ -46,15 +46,21 @@ Referência: PTE DO LIMAO-ADHEMAR F. DA SILVA
 | Sentido | sim | ex.: "BAIRRO/CENTRO", "AMBOS" |
 | Referência | sim | cruzamento ou ponto de referência |
 | Zona / subprefeitura | sim | pelo agrupamento da tabela |
-| Transitável / intransitável | **só por ícone** | o parser precisa ler o `src`/classe da imagem de cada ponto |
-| Ativo / inativo | sim | idem, por ícone/legenda |
+| Transitável / intransitável | sim | classe CSS do `<li>` de status |
+| Ativo / inativo | sim | idem |
 | ID, coordenada, link | **não** | precisamos criar um ID estável e geocodificar |
 
-Seletores HTML usados por um scraper anterior (a confirmar com snapshot atual):
-- bloco do ponto: `div.ponto-de-alagamento`
-- local e horário: `li.arial-descr-alag.col-local`
-- sentido/referência: `li` com o texto `Referência:`
-- subprefeitura: primeiro `td` da tabela que envolve o bloco
+Estrutura confirmada com o HTML real (implementada em `collector/internal/parser`):
+- zona: `<h1 class="tit-bairros">Zona Norte</h1>`
+- subprefeitura: `<td class="bairro ...">Casa Verde <hr/></td>`
+- ponto: `<div class="ponto-de-alagamento">`, contendo:
+  - status como classe CSS: `<li class="inativo-intransitavel">` (`ativo|inativo` + `transitavel|intransitavel`)
+  - `<li class="arial-descr-alag col-local">De 03:25 a 09:47<br/>LOCAL</li>`
+  - `<li class="arial-descr-alag">Sentido: ...<br/>Referência: ...</li>`
+- resumo no fim: `<h1>Transitáveis = 46 pts</h1>` / `<h1>Intransitáveis = 83 pts</h1>`, usado pelo parser para conferir a contagem.
+- Página em UTF-8.
+- Ponto sem horário de fim aparece como `De 14:31 a` (com o "a" sobrando) e com status `ativo-*`. Isso vale também para dias antigos: são pontos que o CGE **nunca encerrou** no registro (342 de 19.550 no histórico). Na análise, tratar "sem fim" como dado faltante, não como alagamento em curso.
+- A página também muda conforme o tempo/horário (imagem de fundo `CC_dia`, `CH_noite`…), então pode haver uma versão nova do HTML sem nenhuma mudança nos pontos.
 
 ## 3. Termos de uso
 
@@ -63,10 +69,19 @@ Seletores HTML usados por um scraper anterior (a confirmar com snapshot atual):
 
 ## Pendências
 
-- [ ] Salvar snapshots HTML reais em `collector/testdata/` (dia com muitos pontos, dia vazio, dia com ponto ativo) — o proxy desta sessão bloqueou o acesso direto; baixar pelo navegador ou pelo coletor.
+- [x] Snapshots reais em `collector/testdata/`: dia cheio (10/02/2020), dia vazio e dia com ponto ativo (14/09/2026).
 - [x] Medir o tamanho real: 12 KB (dia vazio), 90 KB (10/02/2020, 129 pontos).
-- [ ] Confirmar a data mais antiga com dados.
+- [ ] Confirmar a data mais antiga com dados: o primeiro ponto do backfill é de 03/01/2005; falta testar 2004 e antes.
 - [x] O site responde aos runners do GitHub Actions (teste de 04/11/2026). A contagem de `div.ponto-de-alagamento` bateu com os 129 pontos de 10/02/2020, então esse seletor continua válido.
+
+## Primeiro processamento do histórico (05/11/2026)
+
+- 7.965 dias processados (01/01/2005 a 05/11/2026), 0 erros de parsing.
+- 19.550 ocorrências em 1.893 dias com alagamento; 34% intransitáveis.
+- Duração mediana de 87 min; 90% terminam em até ~6,5 h.
+- Maior dia: 10/02/2020 (129 pontos).
+- 14.395 combinações distintas de local + sentido + referência, mas só 4.028 textos de local: o mesmo ponto aparece com grafias diferentes (`AV.` x `AV`, `(CASA VERDE)` no fim…). **Normalizar antes de qualquer ranking.**
+- Faltaram os dias 31/12 de 2005 a 2018 (bug de horário de verão no laço do backfill, corrigido); recoletar com o workflow `coleta` e a lista de datas.
 
 ## Referências
 

@@ -1,12 +1,17 @@
 # Coleta agendada do CGE, a cada 10 min. Grava o HTML bruto na branch `dados`
 # (a `main` fica só com código). Até 2h da manhã também revisa o dia anterior.
-# Pode ser disparada à mão em Actions → coleta → Run workflow.
+# Pode ser disparada à mão em Actions → coleta → Run workflow, opcionalmente
+# com uma lista de datas para recoletar (ex.: dias que falharam no backfill).
 name: coleta
 
 on:
   schedule:
     - cron: "3,13,23,33,43,53 * * * *"
   workflow_dispatch:
+    inputs:
+      datas:
+        description: "Datas para recoletar (AAAA-MM-DD separadas por espaço). Vazio = coleta normal de hoje."
+        required: false
 
 permissions:
   contents: write
@@ -18,7 +23,7 @@ concurrency:
 jobs:
   coletar:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -35,7 +40,17 @@ jobs:
         run: bash .github/scripts/dados.sh preparar
 
       - name: Coletar
+        env:
+          DATAS: ${{ inputs.datas }}
         run: |
+          if [ -n "$DATAS" ]; then
+            falhou=0
+            for d in $DATAS; do
+              "$RUNNER_TEMP/coletor" dia -data "$d" -raiz dados/raw || falhou=1
+              sleep 5
+            done
+            exit $falhou
+          fi
           if [ "$(TZ=America/Sao_Paulo date +%-H)" -lt 2 ]; then
             "$RUNNER_TEMP/coletor" dia -data ontem -raiz dados/raw
             sleep 5

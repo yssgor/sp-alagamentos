@@ -30,6 +30,9 @@ go run ./cmd/coletor dia
 # baixar um período (1 requisição a cada 5 s)
 go run ./cmd/coletor backfill -de 2020-02-01 -ate 2020-02-29
 
+# transformar o HTML bruto numa tabela (CSV) de ocorrências
+go run ./cmd/coletor processar
+
 go test ./...
 ```
 
