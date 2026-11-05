@@ -4,6 +4,8 @@ Registro das decisões tomadas nas discussões do projeto. Uma linha por decisã
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 05/11/2026 | A análise (perguntas e notebook) é construída pelo Ygor, com o Claude guiando — o Claude não escreve a análise | Aprendizado e autoria do projeto de portfólio |
+| 05/11/2026 | Geocodificação pela base de ruas do GeoSampa (cruzamento de duas vias), baixada por workflow | Grátis, oficial, offline e reproduzível; Nominatim erra cruzamentos e Google tem custo e restrição de uso |
 | 05/11/2026 | Ponto sem horário de fim = fim desconhecido (não "em curso") | Em dias antigos o CGE deixou 342 pontos sem encerrar; tratá-los como ativos distorceria duração e mapa ao vivo |
 | 04/11/2026 | Dados coletados pelo Actions (HTML bruto e JSON do site) ficam na branch `dados`; a `main` fica só com código. Localmente, `data/raw/` continua fora do git | Histórico da `main` limpo; volume pequeno (~25 MB de backfill + poucos MB/ano). Migrar para Cloudflare R2 se crescer |
 | 04/11/2026 | MVP roda no GitHub Actions (cron) gravando JSON no repo; página lê o JSON direto do GitHub. Sem VPS | R$ 0; atraso de 10–30 min aceitável com aviso de "não é alerta oficial". Worker da Cloudflare fica como opção futura para ao vivo de verdade |

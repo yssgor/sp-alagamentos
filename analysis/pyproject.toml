@@ -13,6 +13,7 @@ dependencies = [
 dev = [
     "jupyterlab>=4.2",
     "matplotlib>=3.9",
+    "pytest>=9.2.0",
     "ruff>=0.7",
 ]
 

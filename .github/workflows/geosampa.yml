@@ -1,0 +1,56 @@
+# Baixa camadas de referência do GeoSampa para a branch `dados` (pasta ref/geosampa/).
+# 1) Rode com "camadas" vazio: o resumo lista as camadas de ruas/logradouros disponíveis.
+# 2) Rode de novo com os nomes das camadas (separados por espaço) para baixá-las.
+name: geosampa
+
+on:
+  workflow_dispatch:
+    inputs:
+      camadas:
+        description: "Camadas a baixar (ex.: geoportal:logradouro). Vazio = só listar."
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: geosampa
+  cancel-in-progress: false
+
+jobs:
+  geosampa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Listar camadas
+        if: ${{ inputs.camadas == '' }}
+        run: |
+          echo "## Camadas do GeoSampa (ruas, logradouros, viário, quadras, distritos)" >> "$GITHUB_STEP_SUMMARY"
+          python3 .github/scripts/geosampa.py listar logradouro viari eixo quadra distrito subprefeitura >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Preparar branch dados
+        if: ${{ inputs.camadas != '' }}
+        run: bash .github/scripts/dados.sh preparar
+
+      - name: Baixar camadas
+        if: ${{ inputs.camadas != '' }}
+        env:
+          CAMADAS: ${{ inputs.camadas }}
+        run: |
+          mkdir -p dados/ref/geosampa
+          echo "## Camadas baixadas" >> "$GITHUB_STEP_SUMMARY"
+          echo "| camada | feições | arquivo |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          for c in $CAMADAS; do
+            arquivo="dados/ref/geosampa/${c#*:}.geojson.gz"
+            python3 .github/scripts/geosampa.py baixar "$c" "$arquivo" >> "$GITHUB_STEP_SUMMARY"
+            ls -lh "$arquivo"
+          done
+
+      - name: Commit na branch dados
+        if: ${{ inputs.camadas != '' && !cancelled() }}
+        env:
+          CAMADAS: ${{ inputs.camadas }}
+        run: bash .github/scripts/dados.sh commit "geosampa $CAMADAS"

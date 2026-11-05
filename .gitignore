@@ -19,3 +19,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# clone local da branch dados (ver README)
+sp-alagamentos-dados/
