@@ -41,8 +41,8 @@ jobs:
         run: |
           mkdir -p dados/ref/geosampa
           echo "## Camadas baixadas" >> "$GITHUB_STEP_SUMMARY"
-          echo "| camada | feições | arquivo |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| camada | feições (baixadas de total) | repetidas descartadas | arquivo |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
           for c in $CAMADAS; do
             arquivo="dados/ref/geosampa/${c#*:}.geojson.gz"
             python3 .github/scripts/geosampa.py baixar "$c" "$arquivo" >> "$GITHUB_STEP_SUMMARY"
